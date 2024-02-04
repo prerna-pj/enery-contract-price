@@ -2,4 +2,5 @@
 1;"energy";"electricity";2100;2084;"2018-03-12";"2018-12-01";"";"";"";"Wuppertal";"indelivery";1000;"2020-04-17"
 2;"energy";"electricity";2700;2569;"2018-01-26";"2018-10-01";"";"";"";"Cologne";"indelivery";1000;"2020-02-06"
 3;"energy";"electricity";2900;2760;"2019-04-09";"2019-09-01";"";"";"";"Berlin";"indelivery";1002;"2020-01-20"
-4;"energy";"electricity";2500;2391;"2019-09-27";"2019-11-01";"2020-02-29";"2020-02-01";"fristgerecht durch Kunde";"Dortmund";"terminated";1000;"2020-02-01"
+4;"energy";"electricity";2500;2391;"2019-09-27";"2019-11-01";"2020-02-29";"2020-02-01";"fristgerecht durch";"Dortmund";"terminated";1000;"2020-02-01"
+5;"energy";"electricity";2200;2293;"2019-12-29";"2020-02-01";"2020-11-30";"2020-11-02";"fristgerecht durch";"Munich";"cancelled";1002;"2020-01-08"
