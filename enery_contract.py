@@ -1,7 +1,9 @@
 import os
+import time
 from datetime import datetime
 
 import pandas as pd
+import schedule
 from sqlalchemy import create_engine
 
 from util.logger import setup_logger
@@ -64,20 +66,79 @@ def extract_data(
     return df
 
 
-def transform_data(df):
+def transform_data(df_contracts: pd.DataFrame, df_prices: pd.DataFrame) -> pd.DataFrame:
     """
-    To transform the extracted data
+    To create a cotracts and pricing mapping model
+    Parameters:
+    - df_contracts: Dataframe containing imported contracts data
+    - df_prices: Dataframe containing imported prices data per enery product
+    Return:
+    contracts_price_map: Returns a pandas Dataframe containing the price mapping against each contract
     """
-    # Add calculated columns
-    # df["revenue"] = df["base_price"] + (df["consumption"] * df["energy_price"])
+    # Merge the DataFrames based on the specified conditions
+    contracts_price_map = pd.merge(
+        df_contracts[["id", "productid", "createdat", "usage", "startdate"]],
+        df_prices[
+            [
+                "productid",
+                "productcomponent",
+                "price",
+                "unit",
+                "valid_from",
+                "valid_until",
+            ]
+        ],
+        on=["productid"],
+        how="inner",
+        suffixes=("_contracts", "_prices"),
+    ).query("valid_from <= createdat <= valid_until")[
+        [
+            "id",
+            "productid",
+            "usage",
+            "productcomponent",
+            "price",
+            "unit",
+        ]
+    ]
 
-    # Apply data historization
-    df["log_time"] = pd.Timestamp.now()
+    # Pivot the DataFrame to have unique 'id' values as rows and 'price' and 'unit' attribute values as columns
+    contracts_price_map = contracts_price_map.pivot_table(
+        index=["id", "productid"],
+        columns="productcomponent",
+        values=["price", "unit"],
+        aggfunc="first",
+    )
 
+    # Flatten MultiIndex columns
+    contracts_price_map.columns = [
+        "_".join(map(str, col)).strip() for col in contracts_price_map.columns.values
+    ]
+
+    # Renaming columns and resetting index for a cleaner DataFrame
+    contracts_price_map = contracts_price_map.rename(columns={"id": "contractid"})
+    contracts_price_map.reset_index(inplace=True)
+
+    return contracts_price_map
+
+
+def add_historization(df, load_date):
+    """
+    Add load date as per the data imports data
+    """
+    date_timestamp = pd.to_datetime(load_date, format="%Y%m%d")
+    df["load_time"] = date_timestamp
     return df
 
 
-def load_to_dwh(table_name, df):
+def data_validation():
+    """
+    Validate the data
+    """
+    pass
+
+
+def load_to_dwh(table_name, df, insert_type):
     """
     Load the data into a sql darawarehouce
     """
@@ -87,7 +148,8 @@ def load_to_dwh(table_name, df):
     # )
     # # Load to Data Warehouse
     # df.to_sql(dwh_table, con=your_database_engine, if_exists="replace", index=False)
-    sqlite_db.insert_dataframe(table_name=table_name, df=df)
+    print(f"Inserting data into table")
+    sqlite_db.insert_dataframe(table_name=table_name, df=df, insert_type=insert_type)
     logger.info(f"{table_name} data inserted into DWH")
 
 
@@ -120,15 +182,38 @@ def etl_pipeline():
         delimiter=";",
     )
 
+    # Validate the data
+
     # Transform data
-    # transformed_df = transform_data(products_source_data)
+    contracts_prices_map = transform_data(
+        df_contracts=contracts_source_data, df_prices=prices_source_data
+    )
+
+    # Add historization to the contracts details as it can have mutiple records if the contracts gets updated
+    contracts_source_data = add_historization(
+        df=contracts_source_data, load_date=file_name_prefix
+    )
 
     # Load data into Data Warehouse
-    load_to_dwh(table_name="contracts", df=contracts_source_data)
-    load_to_dwh(table_name="prices", df=prices_source_data)
-    load_to_dwh(table_name="products", df=products_source_data)
+    load_to_dwh(table_name="contracts", df=contracts_source_data, insert_type="append")
+    load_to_dwh(table_name="prices", df=prices_source_data, insert_type="replace")
+    load_to_dwh(table_name="products", df=products_source_data, insert_type="replace")
+    load_to_dwh(
+        table_name="contracts_prices_map",
+        df=contracts_prices_map,
+        insert_type="replace",
+    )
     sqlite_db.close_connection()
 
 
 if __name__ == "__main__":
+
     etl_pipeline()
+
+    # # Schedule the data pipeline to run at 11 PM on the 1st of each month
+    # schedule.every().month.at("23:00").day.at("01:00").do(etl_pipeline)
+
+    # # Infinite loop to keep the script running
+    # while True:
+    #     schedule.run_pending()
+    #     time.sleep(1)  # Sleep for 1 second to avoid high CPU usage

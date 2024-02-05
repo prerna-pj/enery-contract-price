@@ -16,7 +16,6 @@ class SQLiteConnection:
     - connect(self): To create a sqlite database
     - create_table(self, create_table_query: str) -> None:
         To create table using a sql create statement
-    - insert_data(self, table_name: str, data) -> None: To insert the records into the sqlite table
     - insert_dataframe(self, table_name: str, df, insert_type='append') -> None:
         To insert the records of a dataframe into the sqlite table
     - execute_query(self, sql_query: str):
@@ -24,7 +23,7 @@ class SQLiteConnection:
     - close_connection(self) -> None: Closes the SQLite database connection.
     """
 
-    def __init__(self, db_name: str):
+    def __init__(self, db_name: str) -> None:
         """
         Constructor to initialize the SQLite connection.
         - param db_name (str): The name of the SQLite database file.
@@ -57,24 +56,7 @@ class SQLiteConnection:
         except sqlite3.Error as e:
             self.logger.debug(f"Error creating table: {e}")
 
-    def insert_data(self, table_name: str, data) -> None:
-        """
-        Method to insert the records into the sqlite table
-        - param table_name: Name of the table in which data is to be inserted
-        - param data: Data that needs to be inserted
-        """
-        try:
-            with self.conn:
-                cursor = self.conn.cursor()
-                columns = ", ".join(data.keys())
-                values = ", ".join(["?" for _ in range(len(data))])
-                insert_query = f"INSERT INTO {table_name} ({columns}) VALUES ({values})"
-                cursor.execute(insert_query, tuple(data.values()))
-                # self.logger.info(f"Data inserted into table {table_name} successfully")
-        except sqlite3.Error as e:
-            self.logger.debug(f"Error inserting data into table {table_name}: {e}")
-
-    def insert_dataframe(self, table_name: str, df, insert_type="append") -> None:
+    def insert_dataframe(self, table_name: str, df, insert_type="replace") -> None:
         """
         Method to insert the records of a dataframe into the sqlite table
         - param table_name: Name of the table in which data is to be inserted

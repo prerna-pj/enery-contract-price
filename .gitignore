@@ -1,7 +1,7 @@
 # List of files and directories to be ignored and not tracked by by Git
 log/
-test.py
-/src_data/2020*
-/src_data/2021*
+/src_data/*
+/src_data
 .vscode
 util/__pycache__
+test.py

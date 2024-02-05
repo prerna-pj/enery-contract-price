@@ -1,0 +1,5 @@
+# Add a list of libraries that are used in this project and need to be installed first using pip install <>
+schedule
+pandas
+
+# TODO: Please add others incae missed
