@@ -115,9 +115,9 @@ def transform_data(df_contracts: pd.DataFrame, df_prices: pd.DataFrame) -> pd.Da
         "_".join(map(str, col)).strip() for col in contracts_price_map.columns.values
     ]
 
-    # Renaming columns and resetting index for a cleaner DataFrame
-    contracts_price_map = contracts_price_map.rename(columns={"id": "contractid"})
+    # Resetting index and enaming columns and for a cleaner DataFrame
     contracts_price_map.reset_index(inplace=True)
+    contracts_price_map = contracts_price_map.rename(columns={"id": "contractid"})
 
     return contracts_price_map
 
@@ -161,7 +161,7 @@ def etl_pipeline():
     source_directory = "./src_data"
     # Get file pattern for each 1st month of the year
     # file_pattern = datetime.now().strftime("%Y%m01")
-    file_name_prefix = "20201101"
+    file_name_prefix = "20210101"
 
     products_source_data = extract_data(
         folder_directory=source_directory,
@@ -195,7 +195,7 @@ def etl_pipeline():
     )
 
     # Load data into Data Warehouse
-    load_to_dwh(table_name="contracts", df=contracts_source_data, insert_type="append")
+    load_to_dwh(table_name="contracts", df=contracts_source_data, insert_type="replace")
     load_to_dwh(table_name="prices", df=prices_source_data, insert_type="replace")
     load_to_dwh(table_name="products", df=products_source_data, insert_type="replace")
     load_to_dwh(
