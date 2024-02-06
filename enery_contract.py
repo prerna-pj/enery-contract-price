@@ -17,18 +17,6 @@ SQLITE_DB_NAME = "enery_contract.db"
 sqlite_db = SQLiteConnection(db_name=SQLITE_DB_NAME)
 sqlite_db.connect()
 
-# def get_filename(folder_directory: str, file_name_prefix: str, file_name_suffix: str) -> str:
-#     """
-#      Extract data from csv files
-#     - param folder_directory: Directory path for the file location
-#     - param file_name_prefix: file name prefix
-#     - param file_name_suffix: file name suffix
-#     - return filename: Name of the file
-#     """
-#     for filename in os.listdir(folder_directory):
-#         if filename.startswith(file_name_prefix) and filename.endswith(file_name_suffix):
-#             return filename
-
 
 def extract_data(
     folder_directory: str, file_name_prefix: str, file_name_suffix: str, delimiter: str
@@ -46,7 +34,6 @@ def extract_data(
             monthly_file = file
 
     df = pd.read_csv(os.path.join(folder_directory, monthly_file), delimiter=delimiter)
-    # print(df)
     return df
 
 
@@ -90,7 +77,7 @@ def transform_data(df_contracts: pd.DataFrame, df_prices: pd.DataFrame) -> pd.Da
 
     # Pivot the DataFrame to have unique 'id' values as rows and 'price' and 'unit' attribute values as columns
     contracts_products_prices_map = contracts_products_prices_map.pivot_table(
-        index=["id_contracts", "productid"],
+        index=["id_contracts", "productid", "usage"],
         columns="productcomponent",
         values=["id_prices", "price", "unit"],
         aggfunc="first",
@@ -116,17 +103,6 @@ def transform_data(df_contracts: pd.DataFrame, df_prices: pd.DataFrame) -> pd.Da
     contracts_products_prices_map["load_time"] = pd.Timestamp.now()
 
     return contracts_products_prices_map
-
-
-def add_historization(df, load_date) -> pd.DataFrame:
-    """
-    Add load date as per the data imports data
-    Parameters:
-    - df: dataframe where DWH load time needs to be inserted
-    """
-    date_timestamp = pd.to_datetime(load_date, format="%Y%m%d")
-    df["load_time"] = date_timestamp
-    return df
 
 
 def data_validation():
@@ -155,8 +131,7 @@ def etl_pipeline():
     # Extract data
     source_directory = "./src_data"
     # Get file pattern for each 1st month of the year
-    # file_pattern = datetime.now().strftime("%Y%m01")
-    file_name_prefix = "20210101"
+    file_name_prefix = datetime.now().strftime("%Y%m01")
 
     products_source_data = extract_data(
         folder_directory=source_directory,
@@ -177,16 +152,9 @@ def etl_pipeline():
         delimiter=";",
     )
 
-    # Validate the data
-
-    # Transform data
+    # Transform and Validate the data
     contracts_products_prices_map = transform_data(
         df_contracts=contracts_source_data, df_prices=prices_source_data
-    )
-
-    # Add historization to the contracts details as it can have mutiple records if the contracts gets updated
-    contracts_source_data = add_historization(
-        df=contracts_source_data, load_date=file_name_prefix
     )
 
     # Load data into Data Warehouse
@@ -194,7 +162,7 @@ def etl_pipeline():
     load_to_dwh(table_name="prices", df=prices_source_data, insert_type="replace")
     load_to_dwh(table_name="products", df=products_source_data, insert_type="replace")
     load_to_dwh(
-        table_name="contracts_prices_map",
+        table_name="contracts_products_prices_map",
         df=contracts_products_prices_map,
         insert_type="replace",
     )
@@ -204,11 +172,3 @@ def etl_pipeline():
 if __name__ == "__main__":
 
     etl_pipeline()
-
-    # # Schedule the data pipeline to run at 11 PM on the 1st of each month
-    # schedule.every().month.at("23:00").day.at("01:00").do(etl_pipeline)
-
-    # # Infinite loop to keep the script running
-    # while True:
-    #     schedule.run_pending()
-    #     time.sleep(1)  # Sleep for 1 second to avoid high CPU usage

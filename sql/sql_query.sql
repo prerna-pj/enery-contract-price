@@ -3,19 +3,18 @@
 -- Assumption: 
 -- 1. consuption = usage
 -- 2. The price of the contract depends when the contract was created
--- Note: Please feel free to select more column as required for your use case
+-- 3. Not considering the contracts whice product-price mapping for the start timeframe of the contract is not prosent
+-- Note: Please feel free to select more columns as required for your use case
 SELECT
-    c.id,
+    cpp_map.contractid,
     p.productcode,
     p.productname,
     p.energy,
-    (cp_map.price_baseprice + (c.usage * cp_map.price_workingprice))
+    (cpp_map.price_baseprice + (cpp_map.usage * cpp_map.price_workingprice))
         AS revenue_per_year
-FROM contracts AS c
-LEFT JOIN contracts_prices_map AS cp_map
-    ON c.id = cp_map.contractid
+FROM contracts_products_prices_map AS cpp_map
 LEFT JOIN products AS p
-    ON c.productid = p.id;
+    ON cpp_map.productid = p.id;
 
 -- 2. How many contracts were on delivery on 01.01.2021?
 -- Assumption: 
