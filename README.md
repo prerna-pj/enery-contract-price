@@ -19,21 +19,29 @@ python energy_contract.py
 ## Tables structure for the cocktail_drinks problem statement
 ### 1. products
 This table contains the details of all the enery products.
+```
 Primary key: id
+```
 
 ### 2. contracts
 This table contains the contract details against each products
+```
 Primary key: id
 Foreign key: productid
+```
 
 ### 3. prices
 This table contains the different pricing details over time against each products
+```
 Primary key: id
 Foreign key: productid
+```
 
-### 4. contracts_prices_map
-This table contains the price mapping against each contract to calculate different kpi.
-Foreign key: contractid, productid
+### 4. contracts_products_prices_map
+This is the final table that contains the price mapping for each contract against a product/enrergy. It get me join with the other three raw tables to get all the relevant information regarding contracts, products or its useage and pricing details. This is the main table shared for the business anlytics purpose, eg: to calculate revenue or kpi. You can keep on adding more columns to make it more specific for the various business needs.
+```
+Foreign key: contractid, productid,
+```
 
 ## How you use the sqlite database
 The data is currently being stored in a sqlite database `enery_contract.db`. You can view the database and tables using below steps:

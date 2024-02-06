@@ -30,25 +30,9 @@ sqlite_db.connect()
 #             return filename
 
 
-def create_sqlite_tables() -> None:
-    """
-    Create tables on sqlite using sql query
-    """
-    try:
-        with open("sql/create_tab_cocktails_details.sql", "r") as sql_file:
-            sql_cocktails_details = sql_file.read()
-        with open("sql/create_tab_cocktails_ingredients.sql", "r") as sql_file:
-            sql_cocktails_ingredients = sql_file.read()
-
-        sqlite_db.create_table(create_table_query=sql_cocktails_details)
-        sqlite_db.create_table(create_table_query=sql_cocktails_ingredients)
-    except Exception as e:
-        logger.exception(f"Error in reading the sql files: {e}")
-
-
 def extract_data(
     folder_directory: str, file_name_prefix: str, file_name_suffix: str, delimiter: str
-):
+) -> pd.DataFrame:
     """
     Extract data from csv files
     - param folder_directory:Directory path for the file location
@@ -73,13 +57,14 @@ def transform_data(df_contracts: pd.DataFrame, df_prices: pd.DataFrame) -> pd.Da
     - df_contracts: Dataframe containing imported contracts data
     - df_prices: Dataframe containing imported prices data per enery product
     Return:
-    contracts_price_map: Returns a pandas Dataframe containing the price mapping against each contract
+    contracts_products_prices_map: Returns a pandas Dataframe containing the price mapping against each contract
     """
     # Merge the DataFrames based on the specified conditions
-    contracts_price_map = pd.merge(
+    contracts_products_prices_map = pd.merge(
         df_contracts[["id", "productid", "createdat", "usage", "startdate"]],
         df_prices[
             [
+                "id",
                 "productid",
                 "productcomponent",
                 "price",
@@ -93,7 +78,8 @@ def transform_data(df_contracts: pd.DataFrame, df_prices: pd.DataFrame) -> pd.Da
         suffixes=("_contracts", "_prices"),
     ).query("valid_from <= createdat <= valid_until")[
         [
-            "id",
+            "id_contracts",
+            "id_prices",
             "productid",
             "usage",
             "productcomponent",
@@ -103,28 +89,40 @@ def transform_data(df_contracts: pd.DataFrame, df_prices: pd.DataFrame) -> pd.Da
     ]
 
     # Pivot the DataFrame to have unique 'id' values as rows and 'price' and 'unit' attribute values as columns
-    contracts_price_map = contracts_price_map.pivot_table(
-        index=["id", "productid"],
+    contracts_products_prices_map = contracts_products_prices_map.pivot_table(
+        index=["id_contracts", "productid"],
         columns="productcomponent",
-        values=["price", "unit"],
+        values=["id_prices", "price", "unit"],
         aggfunc="first",
     )
 
     # Flatten MultiIndex columns
-    contracts_price_map.columns = [
-        "_".join(map(str, col)).strip() for col in contracts_price_map.columns.values
+    contracts_products_prices_map.columns = [
+        "_".join(map(str, col)).strip()
+        for col in contracts_products_prices_map.columns.values
     ]
 
     # Resetting index and enaming columns and for a cleaner DataFrame
-    contracts_price_map.reset_index(inplace=True)
-    contracts_price_map = contracts_price_map.rename(columns={"id": "contractid"})
+    contracts_products_prices_map.reset_index(inplace=True)
+    contracts_products_prices_map = contracts_products_prices_map.rename(
+        columns={
+            "id_contracts": "contractid",
+            "id_prices_baseprice": "id_baseprice",
+            "id_prices_workingprice": "id_workingprice",
+        }
+    )
 
-    return contracts_price_map
+    # Add the DWH load time for the contracts enery prices model
+    contracts_products_prices_map["load_time"] = pd.Timestamp.now()
+
+    return contracts_products_prices_map
 
 
-def add_historization(df, load_date):
+def add_historization(df, load_date) -> pd.DataFrame:
     """
     Add load date as per the data imports data
+    Parameters:
+    - df: dataframe where DWH load time needs to be inserted
     """
     date_timestamp = pd.to_datetime(load_date, format="%Y%m%d")
     df["load_time"] = date_timestamp
@@ -138,17 +136,14 @@ def data_validation():
     pass
 
 
-def load_to_dwh(table_name, df, insert_type):
+def load_to_dwh(table_name: str, df: pd.DataFrame, insert_type: str) -> None:
     """
-    Load the data into a sql darawarehouce
+    Load the data into a Sqlite darawarehouce
+    Parameters:
+    - tablename: Name of the table where data needs to be inserted
+    - df: Pandas dataframe that needs to be inserted into the DWH
+    - insert_type: Behavior of insert if the table already exists. ['fail', 'replace', 'append']
     """
-    # # Assuming you have a SQLAlchemy engine for your database
-    # your_database_engine = create_engine(
-    #     "postgresql://user:password@localhost:5432/your_database"
-    # )
-    # # Load to Data Warehouse
-    # df.to_sql(dwh_table, con=your_database_engine, if_exists="replace", index=False)
-    print(f"Inserting data into table")
     sqlite_db.insert_dataframe(table_name=table_name, df=df, insert_type=insert_type)
     logger.info(f"{table_name} data inserted into DWH")
 
@@ -185,7 +180,7 @@ def etl_pipeline():
     # Validate the data
 
     # Transform data
-    contracts_prices_map = transform_data(
+    contracts_products_prices_map = transform_data(
         df_contracts=contracts_source_data, df_prices=prices_source_data
     )
 
@@ -200,7 +195,7 @@ def etl_pipeline():
     load_to_dwh(table_name="products", df=products_source_data, insert_type="replace")
     load_to_dwh(
         table_name="contracts_prices_map",
-        df=contracts_prices_map,
+        df=contracts_products_prices_map,
         insert_type="replace",
     )
     sqlite_db.close_connection()
